@@ -137,6 +137,20 @@
             height: 100%;
             z-index: 0;
         }
+        @keyframes menuSlideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        @keyframes menuSlideOut {
+            from { transform: translateX(0); }
+            to { transform: translateX(100%); }
+        }
+        .mobile-menu-slide-in {
+            animation: menuSlideIn 0.3s forwards;
+        }
+        .mobile-menu-slide-out {
+            animation: menuSlideOut 0.3s forwards;
+        }
         @media (max-width: 768px) {
             .project-number {
                 font-size: 3.5rem;
