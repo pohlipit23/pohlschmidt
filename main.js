@@ -244,6 +244,10 @@ document.addEventListener('DOMContentLoaded', () => {
     initNetworkAnimation();
     setupIntersectionObserver();
     setupMobileMenu();
+    const yearElement = document.querySelector('#year');
+    if (yearElement) {
+        yearElement.textContent = new Date().getFullYear();
+    }
 
     document.addEventListener('click', (e) => {
         // Close details when clicking outside
