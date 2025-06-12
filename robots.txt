@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Disallow admin areas, login pages, or other private directories
+# Disallow: /admin/
+# Disallow: /cart/
+
+# Sitemap location (replace with your final domain)
+Sitemap: https://www.peterpohlschmidt.com/sitemap.xml
