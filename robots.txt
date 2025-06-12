@@ -6,4 +6,4 @@ Allow: /
 # Disallow: /cart/
 
 # Sitemap location (replace with your final domain)
-Sitemap: https://www.peterpohlschmidt.com/sitemap.xml
+Sitemap: https://pohlschmidt.de/sitemap.xml
