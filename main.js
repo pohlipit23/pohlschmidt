@@ -3,8 +3,13 @@ function initNetworkAnimation() {
     const canvas = document.getElementById('hero-canvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let particles = [];
-    let animationFrameId;
+    let animationFrameId = null;
+    let resizeTimeout = null;
+    let heroVisible = true;
+    let width = 0;
+    let height = 0;
 
     // --- Configuration ---
     const options = {
@@ -22,12 +27,12 @@ function initNetworkAnimation() {
         variantSpeed: 0.3,
         linkRadius: 180
     };
-    
+
     // --- Particle Class ---
     class Particle {
         constructor() {
-            this.x = Math.random() * canvas.width;
-            this.y = Math.random() * canvas.height;
+            this.x = Math.random() * width;
+            this.y = Math.random() * height;
             this.color = options.particleColors[Math.floor(Math.random() * options.particleColors.length)];
             this.radius = options.defaultRadius + Math.random() * options.variantRadius;
             this.speed = options.defaultSpeed + Math.random() * options.variantSpeed;
@@ -48,21 +53,21 @@ function initNetworkAnimation() {
 
         update() {
             // Handle edge collision
-            if (this.x < 0 || this.x > canvas.width) this.vector.x *= -1;
-            if (this.y < 0 || this.y > canvas.height) this.vector.y *= -1;
-            
+            if (this.x < 0 || this.x > width) this.vector.x *= -1;
+            if (this.y < 0 || this.y > height) this.vector.y *= -1;
+
             // Move particle
             this.x += this.vector.x;
             this.y += this.vector.y;
         }
     }
-    
+
     // --- Link particles ---
     function linkParticles() {
         for (let i = 0; i < particles.length; i++) {
             for (let j = i + 1; j < particles.length; j++) {
                 const distance = Math.sqrt(Math.pow(particles[i].x - particles[j].x, 2) + Math.pow(particles[i].y - particles[j].y, 2));
-                
+
                 if (distance < options.linkRadius) {
                     const opacity = 1 - (distance / options.linkRadius);
                     ctx.strokeStyle = `rgba(148, 163, 184, ${opacity})`; // slate-400 with opacity
@@ -79,7 +84,7 @@ function initNetworkAnimation() {
 
     // --- Main animation loop ---
     function animate() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, width, height);
         particles.forEach(p => {
             p.update();
             p.draw();
@@ -90,28 +95,86 @@ function initNetworkAnimation() {
 
     // --- Setup and Initialization ---
     function setup() {
-        // Set canvas size to match its container
+        // Size the canvas to its container, scaled for high-DPI (retina) screens
         const heroSection = document.getElementById('hero');
-        canvas.width = heroSection.offsetWidth;
-        canvas.height = heroSection.offsetHeight;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        width = heroSection.offsetWidth;
+        height = heroSection.offsetHeight;
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Lighter particle work on phone-sized screens
+        const isSmallScreen = width < 768;
+        options.linkRadius = isSmallScreen ? 120 : 180;
 
         // Create particles
         particles = [];
-        const particleCount = Math.floor((canvas.width * canvas.height) / 20000);
-        for (let i = 0; i < Math.min(particleCount, options.particleAmount); i++) {
+        const particleCount = Math.floor((width * height) / 20000);
+        const maxParticles = isSmallScreen ? 40 : options.particleAmount;
+        for (let i = 0; i < Math.min(particleCount, maxParticles); i++) {
             particles.push(new Particle());
         }
-        
+
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
         }
-        
-        animate();
+
+        if (reduceMotion) {
+            // Draw a single static frame instead of animating
+            ctx.clearRect(0, 0, width, height);
+            particles.forEach(p => p.draw());
+            linkParticles();
+        } else if (heroVisible) {
+            animate();
+        }
+    }
+
+    // --- Pause the loop while the hero is off screen (saves mobile battery) ---
+    if ('IntersectionObserver' in window) {
+        new IntersectionObserver((entries) => {
+            heroVisible = entries[0].isIntersecting;
+            if (!heroVisible && animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            } else if (heroVisible && !animationFrameId && !reduceMotion) {
+                animate();
+            }
+        }, { threshold: 0 }).observe(document.getElementById('hero'));
     }
 
     // --- Event Listeners ---
-    window.addEventListener('resize', setup);
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(setup, 150);
+    });
     setup();
+}
+
+// Rotating hero tagline. The CSS-only ::after "content" animation only works
+// in Chromium, so JS drives the rotation on all browsers; the CSS remains as
+// a no-JS fallback.
+function setupRotatingText() {
+    const el = document.querySelector('.rotating-text');
+    if (!el) return;
+
+    const phrases = ['Smarter Travel with AI', 'E-commerce That Performs', 'AI Ideas Brought to Life'];
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    el.classList.add('js-rotating');
+    el.textContent = phrases[0];
+    if (reduceMotion) return;
+
+    let index = 0;
+    setInterval(() => {
+        el.style.opacity = '0';
+        setTimeout(() => {
+            index = (index + 1) % phrases.length;
+            el.textContent = phrases[index];
+            el.style.opacity = '1';
+        }, 400);
+    }, 4000);
 }
 
 // Intersection Observer for fade-in animations
@@ -138,17 +201,20 @@ function setupMobileMenu() {
     if(!menuButton || !nav) return;
 
     const mobileMenu = document.createElement('div');
-    mobileMenu.className = 'hidden fixed inset-0 bg-white bg-opacity-95 z-40 flex flex-col items-center justify-center p-6 space-y-6';
+    mobileMenu.className = 'hidden fixed inset-0 bg-white z-50 flex flex-col items-center justify-center p-6 space-y-8';
     mobileMenu.id = 'mobile-menu';
 
     const closeBtn = document.createElement('button');
-    closeBtn.className = 'absolute top-4 right-4 text-3xl text-gray-600 focus:outline-none';
+    closeBtn.className = 'absolute top-3 right-3 w-11 h-11 flex items-center justify-center text-3xl text-gray-600 focus:outline-none';
+    closeBtn.setAttribute('aria-label', 'Close menu');
     closeBtn.innerHTML = '<i class="fas fa-times"></i>';
     mobileMenu.appendChild(closeBtn);
 
     function showMenu() {
         mobileMenu.classList.remove('hidden', 'mobile-menu-slide-out');
         mobileMenu.classList.add('mobile-menu-slide-in');
+        menuButton.setAttribute('aria-expanded', 'true');
+        menuButton.setAttribute('aria-label', 'Close menu');
         document.body.style.overflow = 'hidden';
     }
 
@@ -159,6 +225,8 @@ function setupMobileMenu() {
         mobileMenu.addEventListener('animationend', () => {
             mobileMenu.classList.add('hidden');
         }, { once: true });
+        menuButton.setAttribute('aria-expanded', 'false');
+        menuButton.setAttribute('aria-label', 'Open menu');
         document.body.style.overflow = '';
     }
 
@@ -231,8 +299,9 @@ function toggleProjectDetails(button) {
     if (isHidden) {
         icon.classList.remove('fa-arrow-right');
         icon.classList.add('fa-arrow-down');
+        const scrollBehavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
         setTimeout(() => {
-            details.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            details.scrollIntoView({ behavior: scrollBehavior, block: 'center' });
         }, 50);
     } else {
          icon.classList.remove('fa-arrow-down');
@@ -243,6 +312,7 @@ function toggleProjectDetails(button) {
 document.addEventListener('DOMContentLoaded', () => {
     initNetworkAnimation();
     setupIntersectionObserver();
+    setupRotatingText();
     setupMobileMenu();
     const yearElement = document.querySelector('#year');
     if (yearElement) {
